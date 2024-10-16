@@ -27,8 +27,7 @@ Save the script as security_audit_windows.ps1.
 Enable Script Execution (If Disabled):
 
 # powershell
-Copy code
-Set-ExecutionPolicy RemoteSigned
+** ensure ** Set-Execution Policy RemoteSigned
 # Run the Script:
 
 Navigate to the script location and run it:
