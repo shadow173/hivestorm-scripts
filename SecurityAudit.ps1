@@ -791,6 +791,95 @@ function Check-FirewallAllowedApps {
         Write-Host "Application allowed: $($app.DisplayName)"
     }
 }
+# Scans for common vulnerabilities on Windows Server 2022
+
+# Output file
+$logFile = "C:\Temp\WindowsVulnerabilityScanLog.txt"
+New-Item -Path $logFile -Force -ItemType File
+
+# Function to write log entries
+function Write-Log {
+    param (
+        [string]$message
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Add-Content -Path $logFile -Value "$timestamp : $message"
+}
+
+# 1. Check for pending Windows Updates
+Write-Log "Checking for pending Windows Updates..."
+Install-Module -Name PSWindowsUpdate -Force -ErrorAction SilentlyContinue
+$Updates = Get-WindowsUpdate -Install -AcceptAll -AutoReboot | Out-String
+if ($Updates) {
+    Write-Log "Pending Updates:"
+    Write-Log $Updates
+} else {
+    Write-Log "No pending Windows Updates found."
+}
+
+# 2. Check Password Policy Settings
+Write-Log "Checking password policy settings..."
+$passwordPolicy = Get-LocalUser | Get-LocalAccount | Where-Object { $_.Enabled -eq $true }
+if ($passwordPolicy) {
+    $minPasswordLength = (Get-ADDefaultDomainPasswordPolicy).MinPasswordLength
+    $passwordComplexity = (Get-ADDefaultDomainPasswordPolicy).PasswordComplexityEnabled
+    Write-Log "Minimum Password Length: $minPasswordLength"
+    Write-Log "Password Complexity Enabled: $passwordComplexity"
+} else {
+    Write-Log "Unable to fetch password policy settings."
+}
+
+# 3. Check Open Firewall Ports
+Write-Log "Checking open firewall ports..."
+$openPorts = netstat -an | Select-String "LISTEN" | Out-String
+if ($openPorts) {
+    Write-Log "Open Firewall Ports:"
+    Write-Log $openPorts
+} else {
+    Write-Log "No open firewall ports found."
+}
+
+# 4. Check if SMBv1 is enabled (insecure)
+Write-Log "Checking if SMBv1 is enabled..."
+$smbv1Status = Get-WindowsOptionalFeature -Online -FeatureName "SMB1Protocol" | Select-Object State
+if ($smbv1Status.State -eq "Enabled") {
+    Write-Log "SMBv1 is ENABLED (This is a security risk, consider disabling it)."
+} else {
+    Write-Log "SMBv1 is disabled."
+}
+
+# 5. Check Windows Defender status
+Write-Log "Checking Windows Defender status..."
+$defenderStatus = Get-MpComputerStatus
+if ($defenderStatus.AntivirusEnabled -eq $true) {
+    Write-Log "Windows Defender is ENABLED."
+    Write-Log "Antivirus Definition Version: $($defenderStatus.AntivirusSignatureVersion)"
+    Write-Log "Last Updated: $($defenderStatus.AntivirusSignatureLastUpdated)"
+} else {
+    Write-Log "Windows Defender is DISABLED or not functioning properly."
+}
+
+# 6. Check for outdated or unsigned drivers
+Write-Log "Checking for outdated or unsigned drivers..."
+$drivers = Get-WindowsDriver -Online | Where-Object { $_.OriginalFileName -ne $null }
+if ($drivers) {
+    foreach ($driver in $drivers) {
+        if (-not $driver.SigningStatus) {
+            Write-Log "Unsigned Driver Found: $($driver.Driver)}"
+        }
+    }
+} else {
+    Write-Log "No unsigned drivers found."
+}
+
+# 7. Check auditing policy
+Write-Log "Checking auditing policy..."
+$auditPolicy = AuditPol /get /category:* | Out-String
+Write-Log "Auditing Policy:"
+Write-Log $auditPolicy
+
+# Final output
+Write-Log "Vulnerability Scan Complete. Log saved to $logFile"
 
 # Main function to run all checks
 function Run-SecurityAudit {
