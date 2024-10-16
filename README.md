@@ -33,4 +33,4 @@ Set-ExecutionPolicy RemoteSigned
 
 Navigate to the script location and run it:
 powershell
- ```ps1 .\SecurityAudit.ps1```
+ ``` .\SecurityAudit.ps1```
